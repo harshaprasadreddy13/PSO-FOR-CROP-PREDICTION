@@ -1,0 +1,45 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_squared_error, accuracy_score
+from pyswarm import pso
+df = pd.read_csv("Crop_recommendation.csv")
+label_encoder = LabelEncoder()
+df['label'] = label_encoder.fit_transform(df['label'])
+X = df.drop(columns=['label'])
+y = df['label']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+def objective_function(params):
+    max_depth, min_samples_split = int(params[0]), int(params[1])
+    model = DecisionTreeRegressor(max_depth=max_depth, min_samples_split=min_samples_split, random_state=42)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    return mean_squared_error(y_test, y_pred)
+lb = [3, 2]
+ub = [20, 10]
+best_params, best_mse = pso(objective_function, lb, ub, swarmsize=10, maxiter=5)
+best_max_depth = int(best_params[0])
+best_min_samples_split = int(best_params[1])
+final_model = DecisionTreeRegressor(max_depth=best_max_depth, min_samples_split=best_min_samples_split, random_state=42)
+final_model.fit(X_train, y_train)
+y_pred = final_model.predict(X_test)
+final_mse = mean_squared_error(y_test, y_pred)
+y_pred_labels = np.round(y_pred).astype(int)
+y_pred_labels = np.clip(y_pred_labels, 0, len(label_encoder.classes_) - 1)
+accuracy = accuracy_score(y_test, y_pred_labels)
+sample_input = pd.DataFrame([X.mean()])
+predicted_label = final_model.predict(sample_input)
+predicted_crop = label_encoder.inverse_transform([int(round(predicted_label[0]))])[0]
+print(f"Best Parameters: max_depth={best_max_depth}, min_samples_split={best_min_samples_split}")
+print(f"\nThe best crop to grow is: {predicted_crop}")
+
+def predict_crop(features):
+    features = np.array(features).reshape(1, -1)
+    pred_label = final_model.predict(features)[0]
+    predicted_crop = label_encoder.inverse_transform([int(round(pred_label))])[0]
+    return predicted_crop
+user_input = [80, 30, 25, 25.0, 75.0, 6.5, 180]
+predicted_crop = predict_crop(user_input)
+print(f"\n Predicted Suitable Crop: {predicted_crop}")
